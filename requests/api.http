@@ -1,0 +1,45 @@
+### Health check
+GET http://localhost:8080/health
+
+### --- Tickets ---
+
+### Create a ticket
+# POST http://localhost:8080/tickets
+# Content-Type: application/json
+#
+# {
+#   "title": "Login page returns 500",
+#   "description": "Users see an internal server error on the login page.",
+#   "priority": "P1",
+#   "assignee": "alice"
+# }
+
+### List tickets
+# GET http://localhost:8080/tickets?status=OPEN&priority=P1
+
+### Get a ticket by ID
+# GET http://localhost:8080/tickets/1
+
+### Update a ticket
+# PATCH http://localhost:8080/tickets/1
+# Content-Type: application/json
+#
+# {
+#   "status": "IN_PROGRESS"
+# }
+
+### --- Comments ---
+
+### Add a comment
+# POST http://localhost:8080/tickets/1/comments
+# Content-Type: application/json
+#
+# {
+#   "author": "bob",
+#   "body": "Looking into this now."
+# }
+
+### --- Events ---
+
+### Get ticket events
+# GET http://localhost:8080/tickets/1/events

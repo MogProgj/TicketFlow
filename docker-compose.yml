@@ -1,0 +1,20 @@
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: ticketflow_db
+    environment:
+      POSTGRES_DB: ticketflow
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5432:5432"
+    volumes:
+      - ticketflow_db_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d ticketflow"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+volumes:
+  ticketflow_db_data:
