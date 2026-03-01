@@ -1,5 +1,7 @@
 # TicketFlow
 
+> **Status:** Public build started on 2026-03-01. This repo is being developed in public from MVP onward.
+
 TicketFlow is a small ticket and incident tracker designed to model real support workflows: priorities, status transitions, comments, and an audit trail of changes. It’s meant to be simple enough to run locally, but structured enough to look like something you’d actually maintain on a team.
 
 This repo is being built in public as a portfolio project.
