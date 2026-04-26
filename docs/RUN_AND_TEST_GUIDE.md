@@ -415,40 +415,77 @@ npm run typecheck
 Copy `frontend/.env.example` to `frontend/.env` and set:
 
 ```
-VITE_API_BASE_URL=http://localhost:8080
+VITE_API_BASE_URL=/api
+VITE_BACKEND_TARGET=http://localhost:8080
 ```
 
-The default is `http://localhost:8080` if the variable is absent.
+How this works in dev:
+
+- The frontend always calls relative URLs like `/api/health` and `/api/tickets`.
+- The Vite dev server proxies anything starting with `/api` to `VITE_BACKEND_TARGET`,
+  stripping the `/api` prefix. So `/api/tickets` is forwarded as `/tickets`.
+- This sidesteps CORS in local development. Backend CORS is still configured for direct
+  cross-origin calls and for non-proxied deployment.
+
+If the backend is on a non-default port, change only `VITE_BACKEND_TARGET`:
+
+```
+VITE_BACKEND_TARGET=http://localhost:8081
+```
+
+then restart `npm run dev` so Vite picks up the new env value.
+
+For deployment without the dev proxy, override `VITE_API_BASE_URL` to an absolute URL
+of the deployed backend.
 
 ---
 
 ## Frontend troubleshooting
 
-### Frontend cannot reach backend (CORS error or network error)
+### "Backend offline" / "Failed to load tickets" / "Failed to create ticket"
 
-1. Confirm the backend is running: `GET http://localhost:8080/health` should return `{ "status": "ok" }`.
-2. Confirm `VITE_API_BASE_URL` in `frontend/.env` points to the correct backend URL and port.
-3. Confirm the backend's `FRONTEND_ORIGIN` variable matches the frontend origin exactly (including port). Default is `http://localhost:5173`.
+Likely causes:
+
+- The Spring Boot backend is not running at all.
+- The backend is running on 8081 but `VITE_BACKEND_TARGET` still points to 8080
+  (or vice versa).
+- `frontend/.env` was changed but `npm run dev` was not restarted.
+- Docker is up (database container) but the Spring Boot process was never started.
+- A previous frontend build was hardcoded to `http://localhost:8080` and CORS broke
+  in some browsers.
+
+Fix checklist:
+
+1. Open `http://localhost:8080/health` (or your `SERVER_PORT`) directly in the browser.
+   It must return `{ "status": "ok" }`.
+2. Check the active `SERVER_PORT` env value used to launch the backend.
+3. Check `frontend/.env` and confirm `VITE_BACKEND_TARGET` matches the backend port.
+4. Restart the Vite dev server (`Ctrl+C` then `npm run dev`).
+5. In browser DevTools → Network, look at the failing requests. Their URL should be
+   `http://localhost:5173/api/health`, not `http://localhost:8080/...`.
+6. If you see a `Could not reach TicketFlow API at /api ...` banner, Vite cannot reach
+   the proxy target. Check `VITE_BACKEND_TARGET` and that the backend is listening.
 
 ### Backend running on a non-default port
 
-If the backend is on port 8081:
-
-```
-VITE_API_BASE_URL=http://localhost:8081
-```
-
-Also ensure the backend is started with the matching `FRONTEND_ORIGIN`:
-
 ```powershell
-$env:FRONTEND_ORIGIN="http://localhost:5173"
 $env:SERVER_PORT="8081"
 .\mvnw.cmd spring-boot:run
 ```
 
+In `frontend/.env`:
+
+```
+VITE_BACKEND_TARGET=http://localhost:8081
+```
+
+Then restart `npm run dev`.
+
 ### Vite choosing a different port
 
-If port 5173 is already in use, Vite picks the next available port (e.g., 5174). Update `FRONTEND_ORIGIN` accordingly before starting the backend:
+If port 5173 is already in use, Vite picks the next available port (e.g., 5174). The
+frontend still works because it calls relative `/api/*` URLs. If you want backend CORS
+to allow direct cross-origin calls from that port too, set:
 
 ```powershell
 $env:FRONTEND_ORIGIN="http://localhost:5174"
@@ -457,6 +494,15 @@ $env:FRONTEND_ORIGIN="http://localhost:5174"
 
 ### Health indicator shows "Backend offline"
 
-- Check the backend is running and reachable at the configured `VITE_API_BASE_URL`.
-- Check the browser console for network errors — a CORS error means `FRONTEND_ORIGIN` does not match the frontend's actual origin.
-- The health check polls every 30 seconds; the indicator updates automatically when the backend comes online.
+- Confirm the backend is running and reachable at `VITE_BACKEND_TARGET`.
+- The health check polls every 30 seconds; the indicator updates automatically when
+  the backend comes online. Use the Refresh button in the top bar to re-check immediately.
+
+### Generated artifacts must not be committed
+
+`target/`, `frontend/node_modules/`, `frontend/dist/`, and `frontend/.vite/` are listed
+in `.gitignore`. If they are accidentally tracked, run:
+
+```bash
+git rm -r --cached target frontend/node_modules frontend/dist frontend/.vite
+```

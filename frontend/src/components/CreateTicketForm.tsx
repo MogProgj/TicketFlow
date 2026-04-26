@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { ApiError, createTicket } from '../api/client'
+import { ApiError, NetworkError, createTicket } from '../api/client'
 import type { CreateTicketPayload, Ticket, TicketPriority } from '../api/types'
 
 interface Props {
@@ -33,7 +33,8 @@ export default function CreateTicketForm({ onCreated, onCancel }: Props) {
             const ticket = await createTicket(payload)
             onCreated(ticket)
         } catch (err) {
-            setError(err instanceof ApiError ? err.message : 'Failed to create ticket.')
+            if (err instanceof ApiError || err instanceof NetworkError) setError(err.message)
+            else setError('Failed to create ticket.')
         } finally {
             setSubmitting(false)
         }

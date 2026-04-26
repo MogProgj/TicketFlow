@@ -71,6 +71,5 @@ export interface ListTicketsParams {
 }
 
 export interface HealthResponse {
-    service: string
     status: string
 }
