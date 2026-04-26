@@ -6,9 +6,12 @@ import java.util.EnumSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 
+import com.mogproj.ticketflow.tickets.dto.CreateTicketCommentRequest;
 import com.mogproj.ticketflow.tickets.dto.CreateTicketRequest;
+import com.mogproj.ticketflow.tickets.dto.TicketCommentResponse;
 import com.mogproj.ticketflow.tickets.dto.TicketEventResponse;
 import com.mogproj.ticketflow.tickets.dto.TicketResponse;
 import com.mogproj.ticketflow.tickets.dto.UpdateTicketRequest;
@@ -28,10 +31,14 @@ public class TicketService {
 
     private final TicketRepository ticketRepository;
     private final TicketEventRepository ticketEventRepository;
+    private final TicketCommentRepository ticketCommentRepository;
 
-    public TicketService(TicketRepository ticketRepository, TicketEventRepository ticketEventRepository) {
+    public TicketService(TicketRepository ticketRepository,
+            TicketEventRepository ticketEventRepository,
+            TicketCommentRepository ticketCommentRepository) {
         this.ticketRepository = ticketRepository;
         this.ticketEventRepository = ticketEventRepository;
+        this.ticketCommentRepository = ticketCommentRepository;
     }
 
     @Transactional
@@ -66,11 +73,17 @@ public class TicketService {
     @Transactional
     public TicketResponse updateTicket(Long ticketId, UpdateTicketRequest request) {
         Ticket ticket = getTicketEntity(ticketId);
-        Ticket.Status previousStatus = ticket.getStatus();
-        boolean statusChanged = request.getStatus() != null && request.getStatus() != previousStatus;
 
+        // Capture old values for audit BEFORE applying changes
+        String oldTitle = ticket.getTitle();
+        String oldDescription = ticket.getDescription();
+        Ticket.Priority oldPriority = ticket.getPriority();
+        String oldAssignee = ticket.getAssignee();
+        Ticket.Status oldStatus = ticket.getStatus();
+
+        boolean statusChanged = request.getStatus() != null && request.getStatus() != oldStatus;
         if (statusChanged) {
-            validateStatusTransition(previousStatus, request.getStatus());
+            validateStatusTransition(oldStatus, request.getStatus());
         }
 
         if (request.getTitle() != null) {
@@ -89,14 +102,26 @@ public class TicketService {
             ticket.setStatus(request.getStatus());
         }
 
-        Ticket savedTicket = ticketRepository.saveAndFlush(ticket);
+        Ticket saved = ticketRepository.saveAndFlush(ticket);
 
+        // Emit events only when value actually changed
+        if (!Objects.equals(saved.getTitle(), oldTitle)) {
+            createEvent(saved, TicketEvent.EventType.TITLE_CHANGED, oldTitle, saved.getTitle());
+        }
+        if (!Objects.equals(saved.getDescription(), oldDescription)) {
+            createEvent(saved, TicketEvent.EventType.DESCRIPTION_CHANGED, oldDescription, saved.getDescription());
+        }
+        if (saved.getPriority() != oldPriority) {
+            createEvent(saved, TicketEvent.EventType.PRIORITY_CHANGED, oldPriority.name(), saved.getPriority().name());
+        }
+        if (!Objects.equals(saved.getAssignee(), oldAssignee)) {
+            createEvent(saved, TicketEvent.EventType.ASSIGNEE_CHANGED, oldAssignee, saved.getAssignee());
+        }
         if (statusChanged) {
-            createEvent(savedTicket, TicketEvent.EventType.STATUS_CHANGED, previousStatus.name(),
-                    savedTicket.getStatus().name());
+            createEvent(saved, TicketEvent.EventType.STATUS_CHANGED, oldStatus.name(), saved.getStatus().name());
         }
 
-        return toTicketResponse(savedTicket);
+        return toTicketResponse(saved);
     }
 
     @Transactional(readOnly = true)
@@ -104,6 +129,27 @@ public class TicketService {
         getTicketEntity(ticketId);
         return ticketEventRepository.findByTicket_IdOrderByCreatedAtAscIdAsc(ticketId).stream()
                 .map(this::toTicketEventResponse)
+                .toList();
+    }
+
+    @Transactional
+    public TicketCommentResponse createComment(Long ticketId, CreateTicketCommentRequest request) {
+        Ticket ticket = getTicketEntity(ticketId);
+        TicketComment comment = new TicketComment();
+        comment.setTicket(ticket);
+        comment.setAuthor(request.getAuthor().trim());
+        comment.setBody(request.getBody().trim());
+        TicketComment saved = ticketCommentRepository.saveAndFlush(comment);
+        createEventWithActor(ticket, TicketEvent.EventType.COMMENT_ADDED, saved.getAuthor(),
+                null, "comment:" + saved.getId());
+        return toTicketCommentResponse(saved);
+    }
+
+    @Transactional(readOnly = true)
+    public List<TicketCommentResponse> listComments(Long ticketId) {
+        getTicketEntity(ticketId);
+        return ticketCommentRepository.findByTicket_IdOrderByCreatedAtAscIdAsc(ticketId).stream()
+                .map(this::toTicketCommentResponse)
                 .toList();
     }
 
@@ -124,9 +170,14 @@ public class TicketService {
     }
 
     private void createEvent(Ticket ticket, TicketEvent.EventType eventType, String fromValue, String toValue) {
+        createEventWithActor(ticket, eventType, SYSTEM_ACTOR, fromValue, toValue);
+    }
+
+    private void createEventWithActor(Ticket ticket, TicketEvent.EventType eventType, String actor,
+            String fromValue, String toValue) {
         TicketEvent event = new TicketEvent();
         event.setTicket(ticket);
-        event.setActor(SYSTEM_ACTOR);
+        event.setActor(actor);
         event.setEventType(eventType);
         event.setFromValue(fromValue);
         event.setToValue(toValue);
@@ -177,6 +228,15 @@ public class TicketService {
                 event.getFromValue(),
                 event.getToValue(),
                 event.getCreatedAt());
+    }
+
+    private TicketCommentResponse toTicketCommentResponse(TicketComment comment) {
+        return new TicketCommentResponse(
+                comment.getId(),
+                comment.getTicket().getId(),
+                comment.getAuthor(),
+                comment.getBody(),
+                comment.getCreatedAt());
     }
 
     private String normalizeRequired(String value) {

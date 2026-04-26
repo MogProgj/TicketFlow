@@ -20,7 +20,8 @@ import jakarta.persistence.Table;
 public class TicketEvent {
 
     public enum EventType {
-        CREATED, STATUS_CHANGED
+        CREATED, STATUS_CHANGED, COMMENT_ADDED,
+        PRIORITY_CHANGED, ASSIGNEE_CHANGED, TITLE_CHANGED, DESCRIPTION_CHANGED
     }
 
     @Id

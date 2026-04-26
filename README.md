@@ -1,86 +1,143 @@
-# TicketFlow
+﻿# TicketFlow
 
-> **Status:** Public build started on 2026-03-01. This repo is being developed in public from MVP onward.
+A ticket and incident tracker modelling real support workflows: priorities, status transitions, comments, and a full audit trail. Built as a portfolio project and developed in public.
 
-TicketFlow is a small ticket and incident tracker designed to model real support workflows: priorities, status transitions, comments, and an audit trail of changes. It’s meant to be simple enough to run locally, but structured enough to look like something you’d actually maintain on a team.
+## What's implemented
 
-This repo is being built in public as a portfolio project.
-
-## What it will support (MVP)
-Tickets with:
-Title and description
-Priority (P1–P4)
-Assignee
-Status workflow and timestamps
-Comments
-Event history (who changed what, and when)
-
-## Status workflow
-The MVP will enforce a basic workflow to avoid “anything goes” updates:
-OPEN → IN_PROGRESS → WAITING → RESOLVED → CLOSED
+- **Ticket CRUD** — create, list (with filters), get by ID, patch
+- **Status workflow** — enforced transitions: `OPEN → IN_PROGRESS → WAITING → RESOLVED → CLOSED`
+- **Priority levels** — P1 (critical) through P4 (low)
+- **Assignee** — optional, blank/null treated as unassigned
+- **Comments** — per-ticket comment thread
+- **Audit events** — `ticket_events` table captures every meaningful change (status, priority, assignee, title, description, comment added)
+- **Swagger/OpenAPI** — auto-generated at `/swagger-ui/index.html`
+- **CORS** — configured for `http://localhost:5173` (frontend dev server)
+- **Frontend UI** — React + TypeScript + Vite SPA at `frontend/`
 
 ## Tech stack
-Java, Spring Boot, PostgreSQL, Docker, Flyway, JUnit, Swagger/OpenAPI.
 
-## Quickstart (local)
-Prerequisites:
-Java 17+ and Docker.
+| Layer      | Technology                            |
+|------------|---------------------------------------|
+| Backend    | Java 17, Spring Boot, Spring Data JPA |
+| Database   | PostgreSQL 16 (Docker Compose, port 5433) |
+| Migrations | Flyway                                |
+| Tests      | JUnit 5, Spring Boot Test, H2 (test)  |
+| API docs   | Springdoc OpenAPI / Swagger UI        |
+| Frontend   | React 18, TypeScript, Vite            |
 
-1) Start the database
+## Running the full stack locally
+
+**Prerequisites:** Java 17, Docker Desktop, Node.js 18+
+
+**Terminal 1 — database:**
+```bash
 docker compose up -d
+```
 
-2) Run the app
+**Terminal 2 — backend:**
+```powershell
+# Windows
+.\mvnw.cmd spring-boot:run
+
+# macOS / Linux
 ./mvnw spring-boot:run
+```
 
-3) Open API docs
-http://localhost:8080/swagger-ui/index.html
+**Terminal 3 — frontend:**
+```bash
+cd frontend
+npm install
+npm run dev
+```
+
+**URLs:**
+
+| Service  | URL                                         |
+|----------|---------------------------------------------|
+| Backend  | http://localhost:8080                       |
+| Swagger  | http://localhost:8080/swagger-ui/index.html |
+| Frontend | http://localhost:5173                       |
 
 ## Configuration
-Example environment values:
 
-SPRING_DATASOURCE_URL=jdbc:postgresql://localhost:5432/ticketflow
-SPRING_DATASOURCE_USERNAME=postgres
-SPRING_DATASOURCE_PASSWORD=postgres
+All configuration is optional — defaults work for the standard Docker Compose setup.
 
-## API overview (planned)
-Tickets
+| Variable                     | Default                                       |
+|------------------------------|-----------------------------------------------|
+| `SPRING_DATASOURCE_URL`      | `jdbc:postgresql://localhost:5433/ticketflow`  |
+| `SPRING_DATASOURCE_USERNAME` | `postgres`                                    |
+| `SPRING_DATASOURCE_PASSWORD` | `postgres`                                    |
+| `SERVER_PORT`                | `8080`                                        |
+| `FRONTEND_ORIGIN`            | `http://localhost:5173`                       |
+| `VITE_API_BASE_URL`          | `http://localhost:8080`                       |
+
+Copy `.env.example` to `.env` for backend variables. Copy `frontend/.env.example` to `frontend/.env` for frontend variables.
+
+> **Note:** Docker Compose maps the container's port 5432 to **host port 5433** to avoid conflicts with a locally installed PostgreSQL.
+
+## API overview
+
+```
+GET  /
+GET  /health
 POST /tickets
-GET /tickets?status=&priority=&q=
-GET /tickets/{id}
+GET  /tickets?status=&priority=&q=
+GET  /tickets/{id}
 PATCH /tickets/{id}
-
-Comments
 POST /tickets/{id}/comments
+GET  /tickets/{id}/comments
+GET  /tickets/{id}/events
+```
 
-History
-GET /tickets/{id}/events
+## Status workflow
 
-## Database model (planned)
-tickets
-ticket_comments
-ticket_events
+```
+OPEN → IN_PROGRESS
+IN_PROGRESS → WAITING, RESOLVED
+WAITING → IN_PROGRESS, RESOLVED
+RESOLVED → CLOSED
+CLOSED → (terminal)
+```
 
-The ticket_events table is the “grown-up” feature here: it keeps an audit trail for status changes and important updates, which is how real support platforms avoid chaos.
+## Running tests
 
-## Project structure (planned)
+```powershell
+# Windows
+.\mvnw.cmd clean test
+
+# macOS / Linux
+./mvnw clean test
+```
+
+Tests use an in-memory H2 database — no running Docker container required.
+
+## Troubleshooting
+
+See [docs/RUN_AND_TEST_GUIDE.md](docs/RUN_AND_TEST_GUIDE.md) for the full troubleshooting guide including frontend/backend connectivity issues.
+
+## Project structure
+
+```
 src/main/java/.../
-controller/
-service/
-repository/
-model/
+  api/           # Root/health controllers, CORS config, error handling
+  tickets/       # Ticket domain: entity, service, controller, repositories, DTOs
 src/main/resources/
-application.yml
-db/migration/
+  application.yml
+  db/migration/  # Flyway SQL migrations
+frontend/
+  src/
+    api/         # Typed API client and TypeScript types
+    components/  # React components
+  .env.example
+```
 
 ## Roadmap
-- [ ] Schema + migrations
-- [ ] Ticket CRUD
-- [ ] Status transition validation
-- [ ] Comments
-- [ ] Audit trail (ticket_events)
-- [ ] Search and filters
-- [ ] Seed data for demo
-- [ ] Basic auth + roles (optional)
+
+- [ ] Inline ticket editing from detail panel
+- [ ] User identity / actor names
+- [ ] Pagination on ticket list
+- [ ] Keyboard shortcuts
 
 ## License
+
 MIT
