@@ -14,15 +14,27 @@
       "problemMatcher": []
     },
     {
+      "label": "App: Run Backend (Windows)",
+      "type": "shell",
+      "command": ".\\mvnw.cmd spring-boot:run",
+      "problemMatcher": []
+    },
+    {
+      "label": "App: Test Backend (Windows)",
+      "type": "shell",
+      "command": ".\\mvnw.cmd test",
+      "problemMatcher": []
+    },
+    {
       "label": "App: Run",
       "type": "shell",
-      "command": "if [ -f ./mvnw ]; then ./mvnw spring-boot:run; else mvn spring-boot:run; fi",
+      "command": "./mvnw spring-boot:run",
       "problemMatcher": []
     },
     {
       "label": "App: Test",
       "type": "shell",
-      "command": "if [ -f ./mvnw ]; then ./mvnw test; else mvn test; fi",
+      "command": "./mvnw test",
       "problemMatcher": []
     }
   ]

@@ -2,11 +2,10 @@
   "version": "0.2.0",
   "configurations": [
     {
-      // Update mainClass once the Spring Boot application class is added.
       "type": "java",
       "name": "TicketFlow",
       "request": "launch",
-      "mainClass": "com.ticketflow.TicketFlowApplication",
+      "mainClass": "com.mogproj.ticketflow.TicketFlowApplication",
       "projectName": "ticketflow"
     }
   ]

@@ -15,7 +15,6 @@ public class UpdateTicketRequest {
 
     private Ticket.Priority priority;
 
-    @Pattern(regexp = ".*\\S.*", message = "assignee must not be blank")
     private String assignee;
 
     private Ticket.Status status;

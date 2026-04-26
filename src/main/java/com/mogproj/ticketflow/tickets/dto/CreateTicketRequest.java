@@ -4,7 +4,6 @@ import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.mogproj.ticketflow.tickets.Ticket;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
-import jakarta.validation.constraints.Pattern;
 
 @JsonIgnoreProperties(ignoreUnknown = false)
 public class CreateTicketRequest {
@@ -18,7 +17,6 @@ public class CreateTicketRequest {
     @NotNull(message = "priority is required")
     private Ticket.Priority priority;
 
-    @Pattern(regexp = ".*\\S.*", message = "assignee must not be blank")
     private String assignee;
 
     public String getTitle() {

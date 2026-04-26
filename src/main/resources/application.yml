@@ -11,6 +11,12 @@ spring:
       ddl-auto: validate
   flyway:
     enabled: true
+  jackson:
+    deserialization:
+      fail-on-unknown-properties: true
+
+app:
+  frontend-origin: ${FRONTEND_ORIGIN:http://localhost:5173}
 
 logging:
   level:
