@@ -1,6 +1,8 @@
-import { useState } from 'react'
-import { ApiError, createComment } from '../api/client'
+import { useEffect, useState } from 'react'
+import { ApiError, NetworkError, createComment } from '../api/client'
 import type { TicketComment } from '../api/types'
+
+const AUTHOR_KEY = 'ticketflow.commentAuthor'
 
 interface Props {
     ticketId: number
@@ -17,11 +19,30 @@ function formatDate(iso: string): string {
     })
 }
 
+function describeError(err: unknown, fallback: string): string {
+    if (err instanceof ApiError || err instanceof NetworkError) return err.message
+    return fallback
+}
+
 export default function CommentsPanel({ ticketId, comments, onCommentAdded }: Props) {
-    const [author, setAuthor] = useState('')
+    const [author, setAuthor] = useState<string>(() => {
+        try {
+            return localStorage.getItem(AUTHOR_KEY) ?? ''
+        } catch {
+            return ''
+        }
+    })
     const [body, setBody] = useState('')
     const [submitting, setSubmitting] = useState(false)
     const [error, setError] = useState<string | null>(null)
+
+    useEffect(() => {
+        try {
+            if (author.trim()) localStorage.setItem(AUTHOR_KEY, author.trim())
+        } catch {
+            // localStorage unavailable, ignore
+        }
+    }, [author])
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault()
@@ -32,7 +53,7 @@ export default function CommentsPanel({ ticketId, comments, onCommentAdded }: Pr
             setBody('')
             onCommentAdded()
         } catch (err) {
-            setError(err instanceof ApiError ? err.message : 'Failed to post comment.')
+            setError(describeError(err, 'Failed to post comment.'))
         } finally {
             setSubmitting(false)
         }
@@ -75,7 +96,7 @@ export default function CommentsPanel({ ticketId, comments, onCommentAdded }: Pr
                     disabled={submitting}
                     rows={3}
                 />
-                <button className="btn btn-primary" type="submit" disabled={submitting}>
+                <button className="btn btn-primary" type="submit" disabled={submitting || !author.trim() || !body.trim()}>
                     {submitting ? 'Posting…' : 'Post Comment'}
                 </button>
             </form>

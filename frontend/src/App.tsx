@@ -1,5 +1,14 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
-import { ApiError, getHealth, getTicket, listComments, listEvents, listTickets } from './api/client'
+import { useCallback, useEffect, useState } from 'react'
+import {
+    ApiError,
+    NetworkError,
+    getApiBaseUrl,
+    getHealth,
+    getTicket,
+    listComments,
+    listEvents,
+    listTickets,
+} from './api/client'
 import type { ListTicketsParams, Ticket, TicketComment, TicketEvent } from './api/types'
 import CommentsPanel from './components/CommentsPanel'
 import CreateTicketForm from './components/CreateTicketForm'
@@ -9,6 +18,11 @@ import TicketList from './components/TicketList'
 import TopBar from './components/TopBar'
 
 type HealthStatus = 'checking' | 'ok' | 'offline'
+
+function describeError(err: unknown, fallback: string): string {
+    if (err instanceof ApiError || err instanceof NetworkError) return err.message
+    return fallback
+}
 
 export default function App() {
     const [healthStatus, setHealthStatus] = useState<HealthStatus>('checking')
@@ -27,21 +41,20 @@ export default function App() {
 
     const [showCreateForm, setShowCreateForm] = useState(false)
 
-    // Debounce timer for search input
-    const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+    const apiBase = getApiBaseUrl()
 
-    // Health check on mount and every 30s
-    useEffect(() => {
-        let active = true
-        const check = () => {
-            getHealth()
-                .then(() => { if (active) setHealthStatus('ok') })
-                .catch(() => { if (active) setHealthStatus('offline') })
-        }
-        check()
-        const id = setInterval(check, 30_000)
-        return () => { active = false; clearInterval(id) }
+    const checkHealth = useCallback(() => {
+        setHealthStatus(prev => (prev === 'ok' ? prev : 'checking'))
+        getHealth()
+            .then(() => setHealthStatus('ok'))
+            .catch(() => setHealthStatus('offline'))
     }, [])
+
+    useEffect(() => {
+        checkHealth()
+        const id = setInterval(checkHealth, 30_000)
+        return () => clearInterval(id)
+    }, [checkHealth])
 
     const loadTickets = useCallback((params: ListTicketsParams) => {
         setTicketsLoading(true)
@@ -49,7 +62,7 @@ export default function App() {
         listTickets(params)
             .then(setTickets)
             .catch((e: unknown) => {
-                setTicketsError(e instanceof ApiError ? e.message : 'Failed to load tickets.')
+                setTicketsError(describeError(e, 'Failed to load tickets.'))
                 setTickets([])
             })
             .finally(() => setTicketsLoading(false))
@@ -69,12 +82,13 @@ export default function App() {
                 setEvents(ticketEvents)
             })
             .catch((e: unknown) => {
-                setDetailError(e instanceof ApiError ? e.message : 'Failed to load ticket detail.')
+                setDetailError(describeError(e, 'Failed to load ticket detail.'))
             })
             .finally(() => setDetailLoading(false))
     }, [])
 
     const handleSelectTicket = (id: number) => {
+        setShowCreateForm(false)
         setSelectedId(id)
         loadDetail(id)
     }
@@ -88,12 +102,9 @@ export default function App() {
 
     const handleTicketUpdated = (ticket: Ticket) => {
         setSelectedTicket(ticket)
-        // Refresh events after update
         listEvents(ticket.id).then(setEvents).catch(() => undefined)
-        // Refresh list (status/priority may have changed)
+        setTickets(prev => prev.map(t => (t.id === ticket.id ? ticket : t)))
         loadTickets(filters)
-        // Update the ticket in the list inline to avoid full reload flicker
-        setTickets(prev => prev.map(t => t.id === ticket.id ? ticket : t))
     }
 
     const handleCommentAdded = () => {
@@ -103,19 +114,20 @@ export default function App() {
         }
     }
 
-    const handleFilterChange = (next: ListTicketsParams) => {
-        if (searchTimer.current) clearTimeout(searchTimer.current)
-        // Debounce the q param only
-        if (next.q !== filters.q && next.q !== '') {
-            searchTimer.current = setTimeout(() => setFilters(next), 400)
-        } else {
-            setFilters(next)
-        }
+    const handleRefresh = () => {
+        checkHealth()
+        loadTickets(filters)
+        if (selectedId !== null) loadDetail(selectedId)
     }
 
     return (
         <div className="app">
-            <TopBar healthStatus={healthStatus} onNewTicket={() => setShowCreateForm(true)} />
+            <TopBar
+                healthStatus={healthStatus}
+                apiBase={apiBase}
+                onRefresh={handleRefresh}
+                onNewTicket={() => setShowCreateForm(true)}
+            />
 
             <div className="workspace">
                 <aside className="sidebar">
@@ -125,7 +137,7 @@ export default function App() {
                         error={ticketsError}
                         filters={filters}
                         selectedId={selectedId}
-                        onFilterChange={handleFilterChange}
+                        onFilterChange={setFilters}
                         onSelect={handleSelectTicket}
                     />
                 </aside>
